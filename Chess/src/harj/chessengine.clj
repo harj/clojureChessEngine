@@ -42,7 +42,7 @@
 ;; Move Generation
 (defn out-of-bounds? [[row col]]
   (or (<= 7 (dec row))
-       (<= 7 (dec col))))
+      (<= 7 (dec col))))
 
 (defn valid-move? [board [start-row start-col] [finish-row finish-col]]
   (let [square (get-pos board [start-row start-col])
@@ -71,18 +71,52 @@
                          (or (= finish-row (inc start-row)) (= finish-row (dec start-row)))))
         ))))
 
+(defn blocked? [board [start-row start-col] [finish-row finish-col]]
+  (let [rows (if (< start-row finish-row)
+               (range (inc start-row) finish-row)
+               (range (dec start-row) finish-col -1))
+        cols (if (< start-col finish-col)
+               (range (inc start-col) finish-col)
+               (range (dec start-col) finish-col -1))]
+    (cond
+      (= start-row finish-row) (not (every? nil? (for [i cols]
+                                              (:piece (get-pos board [start-row i])))))
+      (= start-col finish-col) (not (every? nil? (for [i rows]
+                                                   (:piece (get-pos board [i start-col])))))
+      (= (Math/abs (- start-row finish-row)) (Math/abs (- start-col finish-col))) (not (every? nil? (loop [x rows y cols pieces '()]
+                                                                                             (if (and (empty? x) (empty? y))
+                                                                                               pieces
+                                                                                               (recur (rest x) (rest y) (conj pieces (:piece (get-pos board [(first x) (first y)]))))))))
+    :else (println "Move not possible - does not lie on same file, rank or diagonal"))))
+
 (defn move [board start finish]
   (cond
     (out-of-bounds? finish) (println "Move is out of bounds")
-    (valid-move? board start finish) (-> board
-                                           (set-pos start {})
-                                           (set-pos finish {:piece (:piece (get-pos board start)) :color (:color (get-pos board start))}))
+    (and (valid-move? board start finish) (not (blocked? board start finish))) (-> board
+                                                                                   (set-pos start {})
+                                                                                   (set-pos finish {:piece (:piece (get-pos board start)) :color (:color (get-pos board start))}))
     :else (println "Not valid move")))
+
+;; Game state
+(def game
+  {:moves 0
+   :turn :white
+   :white_score 0
+   :black_score 0
+   :white_captured_pieces []
+   :black_captured_pieces []
+   })
+
+(defn reset-game [state]
+  (assoc state
+    :moves 0
+    :turn :white
+    :white_score 0
+    :black_score 0
+    :white_captured_pieces nil
+    :black_captured_pieces nil))
+
+
 ;; Scratch code
 (comment
-
   )
-
-
-
-
