@@ -26,7 +26,7 @@
 
 (defn print-board [board]
   (let [p->str (fn [p]
-                 (str (first (name (get p :color "")))
+                 (str (first (name (get p :color " ")))
                       (first (name (get p :piece ".")))))]
   (doseq [row (reverse board)]
     (println (str/join " " (map p->str row))))))
@@ -34,28 +34,28 @@
 ;Getters
 (defn get-pos [board [row col]]
   "Takes board and position as vector of rank and file"
-  (get-in board [(dec row) (dec col)]))
+  (get-in board [row col]))
 
 (defn set-pos [board [row col] p]
-  (assoc-in board [(dec row) (dec col)] p))
+  (assoc-in board [row col] p))
 
 ;; Move Generation
 (defn out-of-bounds? [[row col]]
-  (or (<= 7 (dec row))
-      (<= 7 (dec col))))
+  (or (< 7 row)
+      (< 7 col)))
 
 (defn valid-move? [board [start-row start-col] [finish-row finish-col]]
   (let [square (get-pos board [start-row start-col])
         piece (:piece square)
         color (:color square)
-        diagonal? (and (= (- finish-row start-row)) (=(- finish-col finish-row)))]
+        diagonal? (and (= (- finish-row start-row)) (= (- finish-col finish-row)))]
     (when (not (empty? square))
       (case piece
         :pawn (case color
-                :white (if (= start-row 2)
+                :white (if (= start-row 1)
                          (or (= finish-row (inc start-row)) (= finish-row (+ start-row 2)))
                          (= finish-row (inc start-row)))
-                :black (if (= start-row 7)
+                :black (if (= start-row 6)
                          (or (= finish-row (dec start-row)) (= finish-row (- start-row 2)))
                          (= finish-row (dec start-row))))
 
@@ -74,7 +74,7 @@
 (defn blocked? [board [start-row start-col] [finish-row finish-col]]
   (let [rows (if (< start-row finish-row)
                (range (inc start-row) finish-row)
-               (range (dec start-row) finish-col -1))
+               (range (dec start-row) finish-row -1))
         cols (if (< start-col finish-col)
                (range (inc start-col) finish-col)
                (range (dec start-col) finish-col -1))]
@@ -90,33 +90,39 @@
     :else (println "Move not possible - does not lie on same file, rank or diagonal"))))
 
 (defn move [board start finish]
+  "User enters move as a vector of start and finish square [[1 1] [3 1]]. This function adds move to move-history."
   (cond
     (out-of-bounds? finish) (println "Move is out of bounds")
-    (and (valid-move? board start finish) (not (blocked? board start finish))) (-> board
-                                                                                   (set-pos start {})
-                                                                                   (set-pos finish {:piece (:piece (get-pos board start)) :color (:color (get-pos board start))}))
-    :else (println "Not valid move")))
+    (and (valid-move? board start finish) (not (blocked? board start finish))) (swap! move-history conj [start finish])
+    :else (do
+            (println "Not valid move")
+            nil)))
+
+(defn make-move [board start finish]
+  "Takes a board and returns a new board after the move is made"
+  (-> board
+      (set-pos start {})
+      (set-pos finish {:piece (:piece (get-pos board start)) :color (:color (get-pos board start))})))
 
 ;; Game state
-(def game
+(def move-history
+  (atom []))
+
+(defn current-board []
+  (loop [board (initial-board)
+         moves @move-history]
+    (let [current-move (first moves)
+          start (first current-move)
+          finish (second current-move)]
+      (if (nil? current-move)
+        (print-board board)
+        (do
+          (println current-move start finish)
+          (recur (make-move board start finish) (rest moves)))))))
+
+(defn new-game []
+  (reset! move-history [])
   {:moves 0
    :turn :white
-   :white_score 0
-   :black_score 0
-   :white_captured_pieces []
-   :black_captured_pieces []
+   :board (initial-board)
    })
-
-(defn reset-game [state]
-  (assoc state
-    :moves 0
-    :turn :white
-    :white_score 0
-    :black_score 0
-    :white_captured_pieces nil
-    :black_captured_pieces nil))
-
-
-;; Scratch code
-(comment
-  )
