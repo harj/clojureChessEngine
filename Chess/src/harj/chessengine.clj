@@ -58,11 +58,12 @@
       (< 7 col)))
 
 (defn valid-move? [board [start-row start-col] [finish-row finish-col]]
+  "Check if piece is allowed to make that move"
   (let [turn (if (@game-status :white_turn?) :white :black)
         square (get-pos board [start-row start-col])
         piece (:piece square)
         color (:color square)
-        diagonal? (and (= (- finish-row start-row)) (= (- finish-col finish-row)))]
+        diagonal? (= (Math/abs (- finish-row start-row)) (Math/abs (- finish-col start-col)))]
     (when (not (empty? square))
       (if (not (= turn color))
         false
@@ -74,7 +75,6 @@
                   :black (if (= start-row 6)
                            (or (= finish-row (dec start-row)) (= finish-row (- start-row 2)))
                            (= finish-row (dec start-row))))
-
           :rook (or (= finish-col start-col) (= finish-row start-row))
           :bishop diagonal?
           :queen (or (or (= finish-col start-col) (= finish-row start-row))
@@ -93,8 +93,12 @@
                (range (dec start-row) finish-row -1))
         cols (if (< start-col finish-col)
                (range (inc start-col) finish-col)
-               (range (dec start-col) finish-col -1))]
+               (range (dec start-col) finish-col -1))
+        start-square (get-pos board [start-row start-col])
+        finish-square (get-pos board [finish-row finish-col])]
     (cond
+      (= (:piece start-square) :knight) false
+      (= (:color start-square) (:color finish-square)) true
       (= start-row finish-row) (not (every? nil? (for [i cols]
                                               (:piece (get-pos board [start-row i])))))
       (= start-col finish-col) (not (every? nil? (for [i rows]
@@ -113,11 +117,9 @@
                                                                                  (swap! move-history conj [start finish])
                                                                                  (swap! game-status update :moves inc)
                                                                                  (swap! game-status update :white_turn? not))
-
-
     :else (println "Not valid move")))
 
-(defn make-move [board start finish]
+(defn update-board [board start finish]
   "Takes a board and returns the new board after the move is made"
     (-> board
       (set-pos start {})
@@ -131,4 +133,4 @@
           finish (second current-move)]
       (if (nil? current-move)
         board
-        (recur (make-move board start finish) (rest moves))))))
+        (recur (update-board board start finish) (rest moves))))))
