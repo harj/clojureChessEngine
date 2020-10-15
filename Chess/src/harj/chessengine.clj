@@ -39,37 +39,53 @@
 (defn set-pos [board [row col] p]
   (assoc-in board [row col] p))
 
+;; Game state
+(def move-history
+  (atom []))
+
+(def game-status
+  (atom {:moves 0
+         :white_turn? true}))
+
+(defn new-game []
+  (reset! move-history [])
+  (swap! game-status assoc :moves 0)
+  (swap! game-status assoc :white_turn? true))
+
 ;; Move Generation
 (defn out-of-bounds? [[row col]]
   (or (< 7 row)
       (< 7 col)))
 
 (defn valid-move? [board [start-row start-col] [finish-row finish-col]]
-  (let [square (get-pos board [start-row start-col])
+  (let [turn (if (@game-status :white_turn?) :white :black)
+        square (get-pos board [start-row start-col])
         piece (:piece square)
         color (:color square)
         diagonal? (and (= (- finish-row start-row)) (= (- finish-col finish-row)))]
     (when (not (empty? square))
-      (case piece
-        :pawn (case color
-                :white (if (= start-row 1)
-                         (or (= finish-row (inc start-row)) (= finish-row (+ start-row 2)))
-                         (= finish-row (inc start-row)))
-                :black (if (= start-row 6)
-                         (or (= finish-row (dec start-row)) (= finish-row (- start-row 2)))
-                         (= finish-row (dec start-row))))
+      (if (not (= turn color))
+        false
+        (case piece
+          :pawn (case color
+                  :white (if (= start-row 1)
+                           (or (= finish-row (inc start-row)) (= finish-row (+ start-row 2)))
+                           (= finish-row (inc start-row)))
+                  :black (if (= start-row 6)
+                           (or (= finish-row (dec start-row)) (= finish-row (- start-row 2)))
+                           (= finish-row (dec start-row))))
 
-        :rook (or (= finish-col start-col) (= finish-row start-row))
-        :bishop diagonal?
-        :queen (or (or (= finish-col start-col) (= finish-row start-row))
-                   diagonal?)
-        :King (or (or (= finish-col (inc start-col)) (= finish-col (dec start-col)))
-                  (or (= finish-row (inc start-row) (= finish-row (dec start-col)))))
-        :knight (or (and (or (= finish-row (+ start-row 2)) (= finish-row (- start-row 2)))
-                         (or (= finish-col (inc start-col)) (= finish-col (dec start-col))))
-                    (and (or (= finish-col (+ start-col 2)) (= finish-col (- start-col 2)))
-                         (or (= finish-row (inc start-row)) (= finish-row (dec start-row)))))
-        ))))
+          :rook (or (= finish-col start-col) (= finish-row start-row))
+          :bishop diagonal?
+          :queen (or (or (= finish-col start-col) (= finish-row start-row))
+                     diagonal?)
+          :King (or (or (= finish-col (inc start-col)) (= finish-col (dec start-col)))
+                    (or (= finish-row (inc start-row) (= finish-row (dec start-col)))))
+          :knight (or (and (or (= finish-row (+ start-row 2)) (= finish-row (- start-row 2)))
+                           (or (= finish-col (inc start-col)) (= finish-col (dec start-col))))
+                      (and (or (= finish-col (+ start-col 2)) (= finish-col (- start-col 2)))
+                           (or (= finish-row (inc start-row)) (= finish-row (dec start-row)))))
+          )))))
 
 (defn blocked? [board [start-row start-col] [finish-row finish-col]]
   (let [rows (if (< start-row finish-row)
@@ -90,23 +106,22 @@
     :else (println "Move not possible - does not lie on same file, rank or diagonal"))))
 
 (defn move [board start finish]
-  "User enters move as a vector of start and finish square [[1 1] [3 1]]. This function adds move to move-history."
+  "User enters move as a vector of start and finish square [[1 1] [3 1]]. If valid, adds move to move-history and updates game status."
   (cond
     (out-of-bounds? finish) (println "Move is out of bounds")
-    (and (valid-move? board start finish) (not (blocked? board start finish))) (swap! move-history conj [start finish])
-    :else (do
-            (println "Not valid move")
-            nil)))
+    (and (valid-move? board start finish) (not (blocked? board start finish))) (do
+                                                                                 (swap! move-history conj [start finish])
+                                                                                 (swap! game-status update :moves inc)
+                                                                                 (swap! game-status update :white_turn? not))
+
+
+    :else (println "Not valid move")))
 
 (defn make-move [board start finish]
-  "Takes a board and returns a new board after the move is made"
-  (-> board
+  "Takes a board and returns the new board after the move is made"
+    (-> board
       (set-pos start {})
       (set-pos finish {:piece (:piece (get-pos board start)) :color (:color (get-pos board start))})))
-
-;; Game state
-(def move-history
-  (atom []))
 
 (defn current-board []
   (loop [board (initial-board)
@@ -115,14 +130,5 @@
           start (first current-move)
           finish (second current-move)]
       (if (nil? current-move)
-        (print-board board)
-        (do
-          (println current-move start finish)
-          (recur (make-move board start finish) (rest moves)))))))
-
-(defn new-game []
-  (reset! move-history [])
-  {:moves 0
-   :turn :white
-   :board (initial-board)
-   })
+        board
+        (recur (make-move board start finish) (rest moves))))))
