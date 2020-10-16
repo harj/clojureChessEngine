@@ -157,8 +157,11 @@
         (recur (+ score (get pieces-scores (get (first pieces) :piece))) (rest pieces))))))
 
 (defn game-score [board]
-  {:white_score (- (color-score (color-pieces board :white)) (color-score (color-pieces board :black)))
-   :black_score (- (color-score (color-pieces board :black)) (color-score (color-pieces board :white)))
-   })
+  (let [white_captured_value (- 39 (color-score (color-pieces board :white)))
+        black_captured_value (- 39 (color-score (color-pieces board :black)))]
+
+    {:white_score (- white_captured_value black_captured_value)
+     :black_score (- black_captured_value white_captured_value)
+     }))
 
 
