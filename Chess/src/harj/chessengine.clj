@@ -39,19 +39,6 @@
 (defn set-pos [board [row col] p]
   (assoc-in board [row col] p))
 
-;; Game state
-(def move-history
-  (atom []))
-
-(def game-status
-  (atom {:moves 0
-         :white_turn? true}))
-
-(defn new-game []
-  (reset! move-history [])
-  (swap! game-status assoc :moves 0)
-  (swap! game-status assoc :white_turn? true))
-
 ;; Move Generation
 (defn out-of-bounds? [[row col]]
   (or (< 7 row)
@@ -125,6 +112,21 @@
       (set-pos start {})
       (set-pos finish {:piece (:piece (get-pos board start)) :color (:color (get-pos board start))})))
 
+;; Game state
+
+;Moves and updating board
+(def move-history
+  (atom []))
+
+(def game-status
+  (atom {:moves 0
+         :white_turn? true}))
+
+(defn new-game []
+  (reset! move-history [])
+  (swap! game-status assoc :moves 0)
+  (swap! game-status assoc :white_turn? true))
+
 (defn current-board []
   (loop [board (initial-board)
          moves @move-history]
@@ -134,3 +136,29 @@
       (if (nil? current-move)
         board
         (recur (update-board board start finish) (rest moves))))))
+
+;Scoring
+(defn color-pieces [board color]
+  (mapcat (fn [row]
+            (filter (fn [sq] (= (get sq :color) color)) row))
+          board))
+
+(defn color-score [color-pieces]
+  (let [pieces-scores {:pawn 1
+                      :knight 3
+                      :bishop 3
+                      :rook 5
+                      :queen 8
+                      :King 9
+                      }]
+    (loop [score 0 pieces color-pieces]
+      (if (empty? pieces)
+        score
+        (recur (+ score (get pieces-scores (get (first pieces) :piece))) (rest pieces))))))
+
+(defn game-score [board]
+  {:white_score (- (color-score (color-pieces board :white)) (color-score (color-pieces board :black)))
+   :black_score (- (color-score (color-pieces board :black)) (color-score (color-pieces board :white)))
+   })
+
+
