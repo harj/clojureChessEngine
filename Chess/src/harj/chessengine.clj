@@ -8,6 +8,12 @@
        (repeat 8) vec
        (repeat 8) vec))
 
+(defn all-squares []
+  "Get all squares as [row col]"
+  (apply concat
+         (for [i (range 0 8)]
+           (for [j (range 0 8)] [i j]))))
+
 (defn initial-board []
   "Set board to opening positions"
   (let [home-row [:rook :knight :bishop :queen :King :bishop :knight :rook]
@@ -31,13 +37,34 @@
   (doseq [row (reverse board)]
     (println (str/join " " (map p->str row))))))
 
-;Getters
+;Get and set squares
 (defn get-pos [board [row col]]
   "Takes board and position as vector of rank and file"
   (get-in board [row col]))
 
+(defn square-color [board square]
+  (:color (get-pos board square)))
+
+(defn square-piece [board square]
+  (:piece (get-pos board square)))
+
 (defn set-pos [board [row col] p]
   (assoc-in board [row col] p))
+
+;; Game state
+
+;Moves and updating board
+(def move-history
+  (atom []))
+
+(def game-status
+  (atom {:moves 0
+         :white_turn? true}))
+
+(defn new-game []
+  (reset! move-history [])
+  (swap! game-status assoc :moves 0)
+  (swap! game-status assoc :white_turn? true))
 
 ;; Move Generation
 (defn out-of-bounds? [[row col]]
@@ -57,22 +84,21 @@
         (case piece
           :pawn (case color
                   :white (if (= start-row 1)
-                           (or (= finish-row (inc start-row)) (= finish-row (+ start-row 2)))
-                           (= finish-row (inc start-row)))
+                           (and (= start-col finish-col) (or (= finish-row (inc start-row)) (= finish-row (+ start-row 2))))
+                           (and (= start-col finish-col) (= finish-row (inc start-row))))
                   :black (if (= start-row 6)
-                           (or (= finish-row (dec start-row)) (= finish-row (- start-row 2)))
-                           (= finish-row (dec start-row))))
+                           (and (= start-col finish-col) (or (= finish-row (dec start-row)) (= finish-row (- start-row 2))))
+                           (and (= start-col finish-col) (= finish-row (dec start-row)))))
           :rook (or (= finish-col start-col) (= finish-row start-row))
           :bishop diagonal?
-          :queen (or (or (= finish-col start-col) (= finish-row start-row))
-                     diagonal?)
+          :queen (or (or (= finish-col start-col) (= finish-row start-row)) diagonal?)
           :King (or (or (= finish-col (inc start-col)) (= finish-col (dec start-col)))
                     (or (= finish-row (inc start-row) (= finish-row (dec start-col)))))
           :knight (or (and (or (= finish-row (+ start-row 2)) (= finish-row (- start-row 2)))
                            (or (= finish-col (inc start-col)) (= finish-col (dec start-col))))
                       (and (or (= finish-col (+ start-col 2)) (= finish-col (- start-col 2)))
                            (or (= finish-row (inc start-row)) (= finish-row (dec start-row)))))
-          )))))
+                  )))))
 
 (defn blocked? [board [start-row start-col] [finish-row finish-col]]
   (let [rows (if (< start-row finish-row)
@@ -84,8 +110,8 @@
         start-square (get-pos board [start-row start-col])
         finish-square (get-pos board [finish-row finish-col])]
     (cond
-      (= (:piece start-square) :knight) false
       (= (:color start-square) (:color finish-square)) true
+      (= (:piece start-square) :knight) false
       (= start-row finish-row) (not (every? nil? (for [i cols]
                                               (:piece (get-pos board [start-row i])))))
       (= start-col finish-col) (not (every? nil? (for [i rows]
@@ -96,36 +122,25 @@
                                                                                                (recur (rest x) (rest y) (conj pieces (:piece (get-pos board [(first x) (first y)]))))))))
     :else (println "Move not possible - does not lie on same file, rank or diagonal"))))
 
+(defn possible-move? [board start finish]
+  (and (valid-move? board start finish) (not (blocked? board start finish))))
+
 (defn move [board start finish]
   "User enters move as a vector of start and finish square [[1 1] [3 1]]. If valid, adds move to move-history and updates game status."
   (cond
     (out-of-bounds? finish) (println "Move is out of bounds")
-    (and (valid-move? board start finish) (not (blocked? board start finish))) (do
-                                                                                 (swap! move-history conj [start finish])
-                                                                                 (swap! game-status update :moves inc)
-                                                                                 (swap! game-status update :white_turn? not))
+    (possible-move? board start finish) (do
+                                          (swap! move-history conj [start finish])
+                                          (swap! game-status update :moves inc)
+                                          (swap! game-status update :white_turn? not))
     :else (println "Not valid move")))
 
+;; Board State
 (defn update-board [board start finish]
   "Takes a board and returns the new board after the move is made"
-    (-> board
+  (-> board
       (set-pos start {})
       (set-pos finish {:piece (:piece (get-pos board start)) :color (:color (get-pos board start))})))
-
-;; Game state
-
-;Moves and updating board
-(def move-history
-  (atom []))
-
-(def game-status
-  (atom {:moves 0
-         :white_turn? true}))
-
-(defn new-game []
-  (reset! move-history [])
-  (swap! game-status assoc :moves 0)
-  (swap! game-status assoc :white_turn? true))
 
 (defn current-board []
   (loop [board (initial-board)
@@ -137,7 +152,23 @@
         board
         (recur (update-board board start finish) (rest moves))))))
 
-;Scoring
+(defn square-moves [board square]
+  "Returns all valid moves from that square"
+  (map
+    #(conj [square %])
+    (filter #(possible-move? board square %)
+            (all-squares))))
+
+(defn all-color-moves [board color]
+  "Returns all available moves for that color"
+  (let [color-squares (filter #(= (square-color board %) color) (all-squares))]
+    (apply
+      concat
+      (filter #(not (empty? %))
+            (for [sq color-squares]
+              (square-moves board sq))))))
+
+; Scoring
 (defn color-pieces [board color]
   (mapcat (fn [row]
             (filter (fn [sq] (= (get sq :color) color)) row))
