@@ -37,7 +37,7 @@
   (doseq [row (reverse board)]
     (println (str/join " " (map p->str row))))))
 
-;Get and set squares
+;Getters and setters
 (defn get-pos [board [row col]]
   "Takes board and position as vector of rank and file"
   (get-in board [row col]))
@@ -50,6 +50,11 @@
 
 (defn set-pos [board [row col] p]
   (assoc-in board [row col] p))
+
+(defn opponent-color [color]
+  (if (= color :white)
+    :black
+    :white))
 
 ;; Game state
 
@@ -176,6 +181,21 @@
       (filter #(not (empty? %))
             (for [sq color-squares]
               (square-moves board sq))))))
+
+(defn all-squares-attacked [board color]
+  (filter
+    (fn [sq]
+      (when (not (empty? (get-pos board (last sq))))
+        (not (= (square-color board (last sq)) color))))
+    (all-color-moves board color)))
+
+(defn all-pieces-attacked [board current-color]
+  (map #(square-piece board (last %))
+       (all-squares-attacked board current-color)))
+
+(defn check? [board current-color]
+  (not (nil? (some #{:King}
+                   (all-pieces-attacked board current-color)))))
 
 ; Scoring
 (defn color-pieces [board color]
