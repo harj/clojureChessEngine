@@ -71,34 +71,40 @@
   (or (< 7 row)
       (< 7 col)))
 
+(defn row? [[start-row start-col] [finish-row finish-col]]
+  (= start-row finish-row))
+
+(defn col? [[start-row start-col] [finish-row finish-col]]
+  (= start-col finish-col))
+
+(defn diagonal? [[start-row start-col] [finish-row finish-col]]
+  (= (Math/abs (- finish-row start-row)) (Math/abs (- finish-col start-col))))
+
 (defn valid-move? [board [start-row start-col] [finish-row finish-col]]
   "Check if piece is allowed to make that move"
   (let [turn (if (@game-status :white_turn?) :white :black)
         square (get-pos board [start-row start-col])
         piece (:piece square)
-        color (:color square)
-        diagonal? (= (Math/abs (- finish-row start-row)) (Math/abs (- finish-col start-col)))]
+        color (:color square)]
     (when (not (empty? square))
       (if (not (= turn color))
         false
         (case piece
           :pawn (case color
                   :white (if (= start-row 1)
-                           (and (= start-col finish-col) (or (= finish-row (inc start-row)) (= finish-row (+ start-row 2))))
-                           (and (= start-col finish-col) (= finish-row (inc start-row))))
+                           (and col? (or (= finish-row (inc start-row)) (= finish-row (+ start-row 2))))
+                           (and col? (= finish-row (inc start-row))))
                   :black (if (= start-row 6)
-                           (and (= start-col finish-col) (or (= finish-row (dec start-row)) (= finish-row (- start-row 2))))
-                           (and (= start-col finish-col) (= finish-row (dec start-row)))))
-          :rook (or (= finish-col start-col) (= finish-row start-row))
+                           (and col? (or (= finish-row (dec start-row)) (= finish-row (- start-row 2))))
+                           (and col? (= finish-row (dec start-row)))))
+          :rook (or row? col?)
           :bishop diagonal?
-          :queen (or (or (= finish-col start-col) (= finish-row start-row)) diagonal?)
-          :King (or (or (= finish-col (inc start-col)) (= finish-col (dec start-col)))
-                    (or (= finish-row (inc start-row) (= finish-row (dec start-col)))))
+          :queen (or (or row? col?) diagonal?)
+          :King (<= (+ (Math/abs (- start-col finish-col)) (Math/abs (- start-row finish-row))) 2)
           :knight (or (and (or (= finish-row (+ start-row 2)) (= finish-row (- start-row 2)))
                            (or (= finish-col (inc start-col)) (= finish-col (dec start-col))))
                       (and (or (= finish-col (+ start-col 2)) (= finish-col (- start-col 2)))
-                           (or (= finish-row (inc start-row)) (= finish-row (dec start-row)))))
-                  )))))
+                           (or (= finish-row (inc start-row)) (= finish-row (dec start-row))))))))))
 
 (defn blocked? [board [start-row start-col] [finish-row finish-col]]
   (let [rows (if (< start-row finish-row)
