@@ -85,7 +85,10 @@
   (let [turn (if (@game-status :white_turn?) :white :black)
         square (get-pos board [start-row start-col])
         piece (:piece square)
-        color (:color square)]
+        color (:color square)
+        row? (= start-row finish-row)
+        col? (= start-col finish-col)
+        diagonal? (= (Math/abs (- finish-row start-row)) (Math/abs (- finish-col start-col)))]
     (when (not (empty? square))
       (if (not (= turn color))
         false
